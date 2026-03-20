@@ -1,0 +1,82 @@
+name: Build Enzo Studios OS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+
+      - name: Setup Environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git python3 wget curl \
+            build-essential zip bc \
+            bison flex libssl-dev
+
+      - name: Setup Repo Tool
+        run: |
+          mkdir ~/bin
+          curl https://storage.googleapis.com/git-repo-downloads/repo \
+            > ~/bin/repo
+          chmod a+x ~/bin/repo
+
+      - name: Configure Git
+        run: |
+          git config --global user.email \
+            "pedrosoenzo627@gmail.com"
+          git config --global user.name \
+            "Enzo Studios"
+
+      - name: Init LineageOS
+        run: |
+          mkdir ~/rom && cd ~/rom
+          ~/bin/repo init \
+            -u https://github.com/LineageOS/android.git \
+            -b lineage-20.0 \
+            --depth=1
+
+      - name: Sync Sources
+        run: |
+          cd ~/rom
+          ~/bin/repo sync -c -j4 \
+            --force-sync \
+            --no-clone-bundle \
+            --no-tags
+
+      - name: Clone Device Tree
+        run: |
+          cd ~/rom
+          git clone \
+            https://github.com/LineageOS/android_device_xiaomi_ginkgo \
+            device/xiaomi/ginkgo
+
+      - name: Clone Kernel
+        run: |
+          cd ~/rom
+          git clone \
+            https://github.com/LineageOS/android_kernel_xiaomi_ginkgo \
+            kernel/xiaomi/ginkgo
+
+      - name: Apply Enzo Branding
+        run: |
+          cd ~/rom
+          find . -name "*.mk" | xargs grep -l "LineageOS" | \
+            head -5 | xargs sed -i \
+            's/LineageOS/Enzo Studios OS/g' || true
+
+      - name: Build
+        run: |
+          cd ~/rom
+          source build/envsetup.sh
+          lunch lineage_ginkgo-userdebug
+          mka bacon -j2
+
+      - name: Upload ROM
+        uses: actions/upload-artifact@v3
+        with:
+          name: EnzoStudiosOS-ginkgo
+          path: ~/rom/out/target/product/ginkgo/*.zip
+          retention-days: 7
